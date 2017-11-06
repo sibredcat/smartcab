@@ -4,7 +4,8 @@ import math
 from environment import Agent, Environment
 from planner import RoutePlanner
 from simulator import Simulator
-
+import os
+import csv
 
 class LearningAgent(Agent):
     """ An agent that learns to drive in the Smartcab world.
@@ -22,14 +23,15 @@ class LearningAgent(Agent):
         self.Q = dict()          # Create a Q-table which will be a dictionary of tuples
         self.epsilon = epsilon   # Random exploration factor
         self.alpha = alpha       # Learning factor
-        self. counter=1
         
         ###########
         ## TO DO ##
         ###########
         # Set any additional class parameters as needed
      
-        
+        self. counter=1
+        self.out=[]
+        self.f = open(os.path.join('logs', 'stats.csv'), 'w')
     
 
     def reset(self, destination=None, testing=False):
@@ -53,11 +55,40 @@ class LearningAgent(Agent):
         else:
             #self.epsilon=self.epsilon-0.05
             self.epsilon=math.exp(-0.01*self.counter)
-            self.counter+=1
-            #if self.alpha>1/300:
-            #    self.alpha-=1/300
-        #print(self.epsilon,self.counter)
-
+            
+            if self.alpha>-1/math.ceil(100*math.log(0.02)):
+                self.alpha-=-1/math.ceil(100*math.log(0.02))
+            else:
+                self.alpha=0
+            #print(math.ceil(100*math.log(0.02)))
+        
+        if self.counter==2:
+            self.out.append(self.counter-1)
+            self.out.append(self.env.success*1)
+            self.out.append(self.net_reward)
+            
+            fieldnames = ['number', 'result','net_reward']
+            writer=csv.DictWriter(self.f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerow({'number':self.out[0],'result':self.out[1],'net_reward':self.out[2]})
+            self.out=[]
+            
+        elif self.counter>2:
+            self.out.append(self.counter-1)
+            self.out.append(self.env.success*1)
+            self.out.append(self.net_reward)
+            
+            fieldnames = ['number', 'result','net_reward']
+            writer=csv.DictWriter(self.f, fieldnames=fieldnames)
+            writer.writerow({'number':self.out[0],'result':self.out[1],'net_reward':self.out[2]})
+            self.out=[]
+        self.counter+=1
+        self.net_reward=0
+        
+        
+        
+        
+    
         return None
 
     def build_state(self):
@@ -98,7 +129,6 @@ class LearningAgent(Agent):
        
         
         maxQ = max(self.Q[state].values())
-
         return maxQ 
 
 
@@ -147,8 +177,11 @@ class LearningAgent(Agent):
                 action=self.valid_actions[random.randint(0,3)]
                 #num=2
             else:
-                action=self.Q[state].keys()[self.Q[state].values().index(self.get_maxQ(state))]
-                #print(action)
+                ind_list=[]
+                [ind_list.append(ind) for ind, val in enumerate(self.Q[state].values()) if val == self.get_maxQ(state)]
+                rand_action_index=ind_list[random.randint(0,len(ind_list)-1)]
+                action=self.Q[state].keys()[rand_action_index]  
+                #print(self.Q[state])
                 #num=3
         #print(action, num)
         #print(self.epsilon)
@@ -182,7 +215,11 @@ class LearningAgent(Agent):
         action = self.choose_action(state)  # Choose an action
         reward = self.env.act(self, action) # Receive a reward
         self.learn(state, action, reward)   # Q-learn
-
+        
+        self.net_reward=self.net_reward+reward
+        #print 'net reward =', self.net_reward
+        #print('status:', self.env.success)
+        
         return
         
 
@@ -204,7 +241,7 @@ def run():
     #   learning   - set to True to force the driving agent to use Q-learning
     #    * epsilon - continuous value for the exploration factor, default is 1
     #    * alpha   - continuous value for the learning rate, default is 0.5
-    agent = env.create_agent(LearningAgent,learning=True,alpha=0.5)
+    agent = env.create_agent(LearningAgent,learning=True,alpha=1.0,epsilon=1.0)
     
     for key in agent.Q:
         print key,
@@ -223,14 +260,14 @@ def run():
     #   display      - set to False to disable the GUI if PyGame is enabled
     #   log_metrics  - set to True to log trial and simulation results to /logs
     #   optimized    - set to True to change the default log file name
-    sim = Simulator(env,update_delay=0.01, log_metrics=True, optimized=True)
+    sim = Simulator(env, update_delay=0.01 , log_metrics=True, optimized=True)
     
     ##############
     # Run the simulator
     # Flags:
     #   tolerance  - epsilon tolerance before beginning testing, default is 0.05 
     #   n_test     - discrete number of testing trials to perform, default is 0
-    sim.run(n_test=10,tolerance=0.02)
+    sim.run(n_test=10, tolerance=0.02)
     
      ## print Q table
     
